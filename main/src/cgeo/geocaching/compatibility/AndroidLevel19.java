@@ -10,7 +10,9 @@ public class AndroidLevel19 implements AndroidLevel19Interface {
     @Override
     public void importGpxFromStorageAccessFramework(final Activity activity, final int requestCode) {
         // ACTION_OPEN_DOCUMENT is the intent to choose a file via the system's file browser.
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        // patrick
+        Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        //Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
 
         // Filter to only show results that can be "opened", such as a file (as opposed to a list
         // of contacts or timezones)

@@ -26,7 +26,9 @@ public final class Geopoint implements ICoordinates, Parcelable {
     /**
      * JIT bug in Android 4.2.1
      */
-    private static final boolean DISTANCE_BROKEN = Build.VERSION.SDK_INT == Build.VERSION_CODES.JELLY_BEAN_MR1;
+    // patrick
+    //private static final boolean DISTANCE_BROKEN = Build.VERSION.SDK_INT == Build.VERSION_CODES.JELLY_BEAN_MR1;
+    private static final boolean DISTANCE_BROKEN = Build.VERSION.SDK_INT == Build.VERSION_CODES.JELLY_BEAN;
 
     private final double latitude;
     private final double longitude;
