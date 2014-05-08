@@ -55,3 +55,5 @@
 
 # Null analysis annotations of Eclipse JDT are just used by the Eclipse compiler, so ignore them here
 -dontwarn org.eclipse.jdt.annotation.**
+
+-dontwarn com.nokia.maps**
