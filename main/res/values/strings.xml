@@ -566,6 +566,8 @@
     <!-- map sources -->
     <string name="map_source_google_map">Google: Map</string>
     <string name="map_source_google_satellite">Google: Satellite</string>
+    <string name="map_source_here_map">Here: Map</string>
+    <string name="map_source_here_satellite">Here: Satellite</string>
     <string name="map_source_osm_mapnik">OSM: Mapnik</string>
     <string name="map_source_osm_cyclemap">OSM: Cyclemap</string>
     <string name="map_source_osm_offline">Offline</string>

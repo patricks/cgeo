@@ -21,6 +21,9 @@
     <uses-feature
         android:name="android.hardware.screen.portrait"
         android:required="false" />
+    <uses-feature
+        android:glEsVersion="0x00020000"
+        android:required="true" />
 
     <supports-screens
         android:anyDensity="true"
@@ -43,16 +46,14 @@
             android:value="QLQ1hiIxwWGnqRey7KJf" />
         <meta-data
             android:name="com.here.android.maps.apptoken"
-            android:value="YOUR APP CODE" />
+            android:value="rp4HmC40HiDNSpBbujB2vQ" />
 
         <uses-library
             android:name="com.here.android"
-            android:required="true" />
-        <!--
+            android:required="false" />
         <uses-library
             android:name="com.google.android.maps"
             android:required="false" />
-            -->
 
         <!-- Samsung Multi-Window support -->
         <uses-library
@@ -203,6 +204,7 @@
         </activity>
         <activity
             android:name=".maps.google.GoogleMapActivity"
+            android:hardwareAccelerated="true"
             android:label="@string/map_map" >
         </activity>
         <activity

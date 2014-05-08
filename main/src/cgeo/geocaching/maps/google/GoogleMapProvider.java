@@ -22,8 +22,14 @@ public final class GoogleMapProvider extends AbstractMapProvider {
     private GoogleMapProvider() {
         final Resources resources = CgeoApplication.getInstance().getResources();
 
-        registerMapSource(new GoogleMapSource(this, resources.getString(R.string.map_source_google_map)));
-        registerMapSource(new GoogleSatelliteSource(this, resources.getString(R.string.map_source_google_satellite)));
+        // nokia devices uses here maps
+        if ("nokia".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+            registerMapSource(new GoogleMapSource(this, resources.getString(R.string.map_source_here_map)));
+            registerMapSource(new GoogleSatelliteSource(this, resources.getString(R.string.map_source_here_satellite)));
+        } else {
+            registerMapSource(new GoogleMapSource(this, resources.getString(R.string.map_source_google_map)));
+            registerMapSource(new GoogleSatelliteSource(this, resources.getString(R.string.map_source_google_satellite)));
+        }
 
         mapItemFactory = new GoogleMapItemFactory();
     }
