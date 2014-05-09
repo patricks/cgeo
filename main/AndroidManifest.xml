@@ -43,10 +43,10 @@
         <!-- Nokia here maps demo key -->
         <meta-data
             android:name="com.here.android.maps.appid"
-            android:value="QLQ1hiIxwWGnqRey7KJf" />
+            android:value="YOUR ID" />
         <meta-data
             android:name="com.here.android.maps.apptoken"
-            android:value="rp4HmC40HiDNSpBbujB2vQ" />
+            android:value="YOUR TOKEN" />
 
         <uses-library
             android:name="com.here.android"
