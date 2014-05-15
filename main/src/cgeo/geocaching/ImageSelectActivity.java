@@ -231,7 +231,7 @@ public class ImageSelectActivity extends AbstractActivity {
         // camera application.
         if (data != null) {
             final Uri selectedImage = data.getData();
-            //patrick
+            // Nokia X port changes
             if (Build.VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN) {
                 //if (Build.VERSION.SDK_INT < VERSION_CODES.KITKAT) {
                 String[] filePathColumn = { MediaColumns.DATA };
