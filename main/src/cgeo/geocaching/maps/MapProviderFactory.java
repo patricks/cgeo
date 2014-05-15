@@ -33,9 +33,18 @@ public class MapProviderFactory {
 
     public static boolean isGoogleMapsInstalled() {
         // Check if API key is available
-        if (StringUtils.isBlank(CgeoApplication.getInstance().getString(R.string.maps_api_key))) {
-            Log.w("No Google API key available.");
-            return false;
+        // nokia devices uses here maps
+        if ("nokia".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+            if (StringUtils.isBlank(CgeoApplication.getInstance().getString(R.string.here_app_id))) {
+                Log.w("No Here APP ID available.");
+                return false;
+            }
+
+        } else {
+            if (StringUtils.isBlank(CgeoApplication.getInstance().getString(R.string.maps_api_key))) {
+                Log.w("No Google API key available.");
+                return false;
+            }
         }
 
         // Check if API is available
