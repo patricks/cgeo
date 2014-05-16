@@ -109,6 +109,8 @@
         <copy file="./templates/keys.xml" todir="./res/values/" overwrite="true">
             <filterset refid="maps-key" />
             <filterset>
+                <filter token="here.app.id" value="${here.app.id}"/>
+                <filter token="here.app.token" value="${here.app.token}"/>
                 <filter token="ocde.okapi.consumer.key" value="${ocde.okapi.consumer.key}"/>
                 <filter token="ocde.okapi.consumer.secret" value="${ocde.okapi.consumer.secret}"/>
                 <filter token="ocpl.okapi.consumer.key" value="${ocpl.okapi.consumer.key}"/>
