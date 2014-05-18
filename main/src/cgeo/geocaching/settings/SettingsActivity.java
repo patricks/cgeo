@@ -14,6 +14,7 @@ import cgeo.geocaching.files.SimpleDirChooser;
 import cgeo.geocaching.maps.MapProviderFactory;
 import cgeo.geocaching.maps.interfaces.MapSource;
 import cgeo.geocaching.utils.DatabaseBackupUtils;
+import cgeo.geocaching.utils.DebugUtils;
 import cgeo.geocaching.utils.Log;
 
 import org.apache.commons.lang3.StringUtils;
@@ -62,7 +63,7 @@ public class SettingsActivity extends PreferenceActivity {
      * directory and preference key in onActivityResult() easily just by knowing
      * the result code.
      */
-    private enum DirChooserType {
+    private static enum DirChooserType {
         GPX_IMPORT_DIR(1, R.string.pref_gpxImportDir,
                 Environment.getExternalStorageDirectory().getPath() + "/gpx", false),
         GPX_EXPORT_DIR(2, R.string.pref_gpxExportDir,
@@ -90,8 +91,19 @@ public class SettingsActivity extends PreferenceActivity {
         SettingsActivity.addPreferencesFromResource(this, R.xml.preferences);
         initPreferences();
 
+        /* Remove the show overflow preference on Android version where the platform always or never
+         * shows the overflow menu and the app cannot influence the behaviour
+         */
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB || Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            Preference pref = findPreference(this, getString(R.string.pref_alwaysshowoverflowmenu));
+            PreferenceScreen appearence = (PreferenceScreen) findPreference(this, getString(R.string.pref_appearance));
+            appearence.removePreference(pref);
+
+        }
         Intent intent = getIntent();
         openInitialScreen(intent.getIntExtra(INTENT_OPEN_SCREEN, 0));
+
+
     }
 
     private void openInitialScreen(int initialScreen) {
@@ -189,7 +201,7 @@ public class SettingsActivity extends PreferenceActivity {
 
     private static void setServiceScreenSummary(PreferenceManager preferenceManager, final int preferenceKey) {
 
-        String summary = StringUtils.EMPTY;
+        String summary;
 
         switch (preferenceKey) {
             case R.string.pref_connectorGCActive:
@@ -380,6 +392,15 @@ public class SettingsActivity extends PreferenceActivity {
                 return true;
             }
         });
+		Preference memoryDumpPref = getPreference(R.string.pref_memory_dump);
+		memoryDumpPref
+				.setOnPreferenceClickListener(new OnPreferenceClickListener() {
+					@Override public boolean onPreferenceClick(
+							Preference preference) {
+						DebugUtils.createMemoryDump(SettingsActivity.this);
+						return true;
+					}
+				});
     }
 
     private void initDbLocationPreference() {
@@ -582,7 +603,7 @@ public class SettingsActivity extends PreferenceActivity {
                     || isPreference(preference, R.string.pref_connectorOXActive)
                     || isPreference(preference, R.string.pref_connectorECActive)) {
                 // update summary
-                boolean boolVal = ((Boolean) value).booleanValue();
+                final boolean boolVal = (Boolean) value;
                 String summary = getServiceSummary(boolVal);
                 if (OCPreferenceKeys.isOCPreference(preference.getKey())) {
                     OCPreferenceKeys prefKey = OCPreferenceKeys.getByKey(preference.getKey());

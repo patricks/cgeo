@@ -3,6 +3,7 @@ package cgeo.geocaching;
 import cgeo.geocaching.sensors.DirectionProvider;
 import cgeo.geocaching.sensors.GeoDataProvider;
 import cgeo.geocaching.sensors.IGeoData;
+import cgeo.geocaching.settings.Settings;
 import cgeo.geocaching.utils.Log;
 
 import rx.Observable;
@@ -10,6 +11,12 @@ import rx.functions.Action1;
 import rx.observables.ConnectableObservable;
 
 import android.app.Application;
+import android.os.Environment;
+import android.view.ViewConfiguration;
+
+import java.io.IOException;
+import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.reflect.Field;
 
 public class CgeoApplication extends Application {
 
@@ -22,6 +29,31 @@ public class CgeoApplication extends Application {
     private volatile IGeoData currentGeo = null;
     private volatile float currentDirection = 0.0f;
 
+    static {
+        final UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+
+        Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
+
+            @Override
+            public void uncaughtException(Thread thread, Throwable ex) {
+                Log.e("UncaughtException", ex);
+                Throwable exx = ex;
+                while (exx.getCause() != null) {
+                    exx = exx.getCause();
+                }
+                if (exx.getClass().equals(OutOfMemoryError.class)) {
+                    try {
+                        Log.e("OutOfMemory");
+                        android.os.Debug.dumpHprofData(Environment.getExternalStorageDirectory().getPath() + "/dump.hprof");
+                    } catch (IOException e) {
+                        Log.e("Error writing dump", e);
+                    }
+                }
+                defaultHandler.uncaughtException(thread, ex);
+            }
+        });
+    }
+
     public CgeoApplication() {
         setInstance(this);
     }
@@ -33,6 +65,24 @@ public class CgeoApplication extends Application {
     public static CgeoApplication getInstance() {
         return instance;
     }
+
+    @Override
+    public void onCreate() {
+        if (Settings.isAlwaysShowOverlfowMenu()) {
+            try {
+                ViewConfiguration config = ViewConfiguration.get(this);
+                Field menuKeyField = ViewConfiguration.class.getDeclaredField("sHasPermanentMenuKey");
+
+                if (menuKeyField != null) {
+                    menuKeyField.setAccessible(true);
+                    menuKeyField.setBoolean(config, false);
+                }
+            } catch (Exception ex) {
+                // Ignore
+            }
+        }
+    }
+
 
     @Override
     public void onLowMemory() {

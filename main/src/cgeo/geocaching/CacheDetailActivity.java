@@ -60,9 +60,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import rx.Observable;
 import rx.Observable.OnSubscribe;
 import rx.Observer;
-import rx.Scheduler.Inner;
 import rx.Subscriber;
 import rx.android.observables.AndroidObservable;
+import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.schedulers.Schedulers;
 import rx.subscriptions.CompositeSubscription;
@@ -97,7 +97,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.ViewParent;
@@ -272,15 +271,6 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
             // nothing, we lost the window
         }
 
-        final ImageView defaultNavigationImageView = (ImageView) findViewById(R.id.defaultNavigation);
-        defaultNavigationImageView.setOnLongClickListener(new OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                startDefaultNavigation2();
-                return true;
-            }
-        });
-
         final int pageToOpen = savedInstanceState != null ?
                 savedInstanceState.getInt(STATE_PAGE_INDEX, 0) :
                 Settings.isOpenLastDetailsPage() ? Settings.getLastDetailsPage() : 1;
@@ -300,9 +290,9 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
 
         final String realGeocode = geocode;
         final String realGuid = guid;
-        Schedulers.io().schedule(new Action1<Inner>() {
+        Schedulers.io().createWorker().schedule(new Action0() {
             @Override
-            public void call(final Inner inner) {
+            public void call() {
                 search = Geocache.searchByGeocode(realGeocode, StringUtils.isBlank(realGeocode) ? realGuid : null, 0, false, loadCacheHandler);
                 loadCacheHandler.sendMessage(Message.obtain());
             }
@@ -510,7 +500,7 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
                 }
         }
 
-        return true;
+        return super.onOptionsItemSelected(item);
     }
 
     private static final class CacheDetailsGeoDirHandler extends GeoDirHandler {
@@ -609,11 +599,12 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
 
         // action bar: title and icon
         if (StringUtils.isNotBlank(cache.getName())) {
-            setTitle(cache.getName() + " (" + cache.getGeocode() + ')');
+            getSupportActionBar().setTitle(cache.getName() + " (" + cache.getGeocode() + ')');
         } else {
-            setTitle(cache.getGeocode());
+            getSupportActionBar().setTitle(cache.getGeocode());
         }
-        ((TextView) findViewById(R.id.actionbar_title)).setCompoundDrawablesWithIntrinsicBounds(getResources().getDrawable(cache.getType().markerId), null, null, null);
+
+        getSupportActionBar().setIcon(getResources().getDrawable(cache.getType().markerId));
 
         // reset imagesList so Images view page will be redrawn
         imagesList = null;
@@ -629,13 +620,6 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
      */
     private void startDefaultNavigation() {
         NavigationAppFactory.startDefaultNavigationApplication(1, this, cache);
-    }
-
-    /**
-     * Tries to navigate to the {@link Geocache} of this activity.
-     */
-    private void startDefaultNavigation2() {
-        NavigationAppFactory.startDefaultNavigationApplication(2, this, cache);
     }
 
     /**
@@ -1054,7 +1038,7 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
 
                 progress.show(CacheDetailActivity.this, res.getString(R.string.cache_dialog_refresh_title), res.getString(R.string.cache_dialog_refresh_message), true, refreshCacheHandler.cancelMessage());
 
-                cache.refresh(cache.getListId(), refreshCacheHandler, Schedulers.io());
+                cache.refresh(refreshCacheHandler, Schedulers.io());
             }
         }
 
@@ -2112,9 +2096,9 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
     }
 
     static void updateOfflineBox(final View view, final Geocache cache, final Resources res,
-            final OnClickListener refreshCacheClickListener,
-            final OnClickListener dropCacheClickListener,
-            final OnClickListener storeCacheClickListener) {
+                                        final OnClickListener refreshCacheClickListener,
+                                        final OnClickListener dropCacheClickListener,
+                                        final OnClickListener storeCacheClickListener) {
         // offline use
         final TextView offlineText = (TextView) view.findViewById(R.id.offline_text);
         final Button offlineRefresh = (Button) view.findViewById(R.id.offline_refresh);
@@ -2227,9 +2211,9 @@ public class CacheDetailActivity extends AbstractViewPagerActivity<CacheDetailAc
 
     protected void storeCache(final int listId, final StoreCacheHandler storeCacheHandler) {
         progress.show(this, res.getString(R.string.cache_dialog_offline_save_title), res.getString(R.string.cache_dialog_offline_save_message), true, storeCacheHandler.cancelMessage());
-        Schedulers.io().schedule(new Action1<Inner>() {
+        Schedulers.io().createWorker().schedule(new Action0() {
             @Override
-            public void call(final Inner inner) {
+            public void call() {
                 cache.store(listId, storeCacheHandler);
             }
         });

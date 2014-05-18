@@ -46,9 +46,8 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 
 import rx.Scheduler;
-import rx.Scheduler.Inner;
 import rx.Subscription;
-import rx.functions.Action1;
+import rx.functions.Action0;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -160,7 +159,6 @@ public class Geocache implements ICache, IWaypoint {
     private final EnumSet<StorageLocation> storageLocation = EnumSet.of(StorageLocation.HEAP);
     private boolean finalDefined = false;
     private boolean logPasswordRequired = false;
-    // private int zoomlevel = Tile.ZOOMLEVEL_MIN - 1;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
@@ -709,6 +707,12 @@ public class Geocache implements ICache, IWaypoint {
             return;
         }
 
+        final Intent intent = getIntent();
+
+        fromActivity.startActivity(Intent.createChooser(intent, res.getText(R.string.action_bar_share_title)));
+    }
+
+    public Intent getIntent() {
         final StringBuilder subject = new StringBuilder("Geocache ");
         subject.append(geocode);
         if (StringUtils.isNotBlank(name)) {
@@ -720,7 +724,7 @@ public class Geocache implements ICache, IWaypoint {
         intent.putExtra(Intent.EXTRA_SUBJECT, subject.toString());
         intent.putExtra(Intent.EXTRA_TEXT, getUrl());
 
-        fromActivity.startActivity(Intent.createChooser(intent, res.getText(R.string.action_bar_share_title)));
+        return intent;
     }
 
     public String getUrl() {
@@ -1438,9 +1442,9 @@ public class Geocache implements ICache, IWaypoint {
     }
 
     public Subscription drop(final Handler handler, final Scheduler scheduler) {
-        return scheduler.schedule(new Action1<Inner>() {
+        return scheduler.createWorker().schedule(new Action0() {
             @Override
-            public void call(final Inner inner) {
+            public void call() {
                 try {
                     dropSynchronous();
                     handler.sendMessage(Message.obtain());
@@ -1498,19 +1502,19 @@ public class Geocache implements ICache, IWaypoint {
         }
     }
 
-    public Subscription refresh(final int newListId, final CancellableHandler handler, final Scheduler scheduler) {
-        return scheduler.schedule(new Action1<Inner>() {
+    public Subscription refresh(final CancellableHandler handler, final Scheduler scheduler) {
+        return scheduler.createWorker().schedule(new Action0() {
             @Override
-            public void call(final Inner inner) {
-                refreshSynchronous(newListId, handler);
+            public void call() {
+                refreshSynchronous(handler);
                 handler.sendEmptyMessage(CancellableHandler.DONE);
             }
         });
     }
 
-    public void refreshSynchronous(final int newListId, final CancellableHandler handler) {
+    public void refreshSynchronous(final CancellableHandler handler) {
         DataStore.removeCache(geocode, EnumSet.of(RemoveFlag.REMOVE_CACHE));
-        storeCache(null, geocode, newListId, true, handler);
+        storeCache(null, geocode, listId, true, handler);
     }
 
     public static void storeCache(Geocache origCache, String geocode, int listId, boolean forceRedownload, CancellableHandler handler) {

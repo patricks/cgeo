@@ -11,6 +11,7 @@ import cgeo.geocaching.gcvote.GCVote;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 
 import rx.Observable;
@@ -58,6 +59,14 @@ public class SearchResult implements Parcelable {
      */
     public SearchResult() {
         this(new HashSet<String>());
+    }
+
+    /**
+     * Build a new empty search result with an error status.
+     */
+    public SearchResult(final StatusCode statusCode) {
+        this();
+        error = statusCode;
     }
 
     /**
@@ -156,6 +165,7 @@ public class SearchResult implements Parcelable {
         return 0;
     }
 
+    @NonNull
     public Set<String> getGeocodes() {
         return Collections.unmodifiableSet(geocodes);
     }

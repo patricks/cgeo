@@ -47,6 +47,14 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import rx.Observable;
+import rx.Observable.OnSubscribe;
+import rx.Subscriber;
+import rx.functions.Action1;
+import rx.functions.Func0;
+import rx.functions.Func2;
+import rx.schedulers.Schedulers;
+
 import android.net.Uri;
 import android.text.Html;
 
@@ -136,7 +144,6 @@ public abstract class GCParser {
 
                 while (matcherGuidAndDisabled.find()) {
                     if (matcherGuidAndDisabled.groupCount() > 0) {
-                        //cache.setGuid(matcherGuidAndDisabled.group(1));
                         if (matcherGuidAndDisabled.group(2) != null) {
                             cache.setName(Html.fromHtml(matcherGuidAndDisabled.group(2).trim()).toString());
                         }
@@ -335,32 +342,50 @@ public abstract class GCParser {
     }
 
     static SearchResult parseCache(final String page, final CancellableHandler handler) {
-        final SearchResult searchResult = parseCacheFromText(page, handler);
+        final ImmutablePair<StatusCode, Geocache> parsed = parseCacheFromText(page, handler);
         // attention: parseCacheFromText already stores implicitly through searchResult.addCache
-        if (searchResult != null && !searchResult.getGeocodes().isEmpty()) {
-            final Geocache cache = searchResult.getFirstCacheFromResult(LoadFlags.LOAD_CACHE_OR_DB);
-            if (cache == null) {
-                return null;
-            }
-            getExtraOnlineInfo(cache, page, handler);
-            // too late: it is already stored through parseCacheFromText
-            cache.setDetailedUpdatedNow();
-            if (CancellableHandler.isCancelled(handler)) {
-                return null;
-            }
-
-            // save full detailed caches
-            CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_cache);
-            DataStore.saveCache(cache, EnumSet.of(SaveFlag.SAVE_DB));
-
-            // update progress message so user knows we're still working. This is more of a place holder than
-            // actual indication of what the program is doing
-            CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_render);
+        if (parsed.left != StatusCode.NO_ERROR) {
+            return new SearchResult(parsed.left);
         }
-        return searchResult;
+
+        final Geocache cache = parsed.right;
+        getExtraOnlineInfo(cache, page, handler);
+        // too late: it is already stored through parseCacheFromText
+        cache.setDetailedUpdatedNow();
+        if (CancellableHandler.isCancelled(handler)) {
+            return null;
+        }
+
+        // save full detailed caches
+        CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_cache);
+        DataStore.saveCache(cache, EnumSet.of(SaveFlag.SAVE_DB));
+
+        // update progress message so user knows we're still working. This is more of a place holder than
+        // actual indication of what the program is doing
+        CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_render);
+        return new SearchResult(cache);
     }
 
-    static SearchResult parseCacheFromText(final String pageIn, final CancellableHandler handler) {
+    static SearchResult parseAndSaveCacheFromText(final String page, @Nullable final CancellableHandler handler) {
+        final ImmutablePair<StatusCode, Geocache> parsed = parseCacheFromText(page, handler);
+        final SearchResult result = new SearchResult(parsed.left);
+        if (parsed.left == StatusCode.NO_ERROR) {
+            result.addAndPutInCache(Collections.singletonList(parsed.right));
+            DataStore.saveLogsWithoutTransaction(parsed.right.getGeocode(), getLogsFromDetails(page).toBlockingObservable().toIterable());
+        }
+        return result;
+    }
+
+    /**
+     * Parse cache from text and return either an error code or a cache object in a pair. Note that inline logs are
+     * not parsed nor saved, while the cache itself is.
+     *
+     * @param pageIn the page text to parse
+     * @param handler the handler to send the progress notifications to
+     * @return a pair, with a {@link StatusCode} on the left, and a non-nulll cache objet on the right
+     *          iff the status code is {@link StatusCode.NO_ERROR}.
+     */
+    static private ImmutablePair<StatusCode, Geocache> parseCacheFromText(final String pageIn, @Nullable final CancellableHandler handler) {
         CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_details);
 
         if (StringUtils.isBlank(pageIn)) {
@@ -368,22 +393,17 @@ public abstract class GCParser {
             return null;
         }
 
-        final SearchResult searchResult = new SearchResult();
-
         if (pageIn.contains(GCConstants.STRING_UNPUBLISHED_OTHER) || pageIn.contains(GCConstants.STRING_UNPUBLISHED_FROM_SEARCH)) {
-            searchResult.setError(StatusCode.UNPUBLISHED_CACHE);
-            return searchResult;
+            return ImmutablePair.of(StatusCode.UNPUBLISHED_CACHE, null);
         }
 
         if (pageIn.contains(GCConstants.STRING_PREMIUMONLY_1) || pageIn.contains(GCConstants.STRING_PREMIUMONLY_2)) {
-            searchResult.setError(StatusCode.PREMIUM_ONLY);
-            return searchResult;
+            return ImmutablePair.of(StatusCode.PREMIUM_ONLY, null);
         }
 
         final String cacheName = Html.fromHtml(TextUtils.getMatch(pageIn, GCConstants.PATTERN_NAME, true, "")).toString();
         if (GCConstants.STRING_UNKNOWN_ERROR.equalsIgnoreCase(cacheName)) {
-            searchResult.setError(StatusCode.UNKNOWN_ERROR);
-            return searchResult;
+            return ImmutablePair.of(StatusCode.UNKNOWN_ERROR, null);
         }
 
         // first handle the content with line breaks, then trim everything for easier matching and reduced memory consumption in parsed fields
@@ -488,7 +508,7 @@ public abstract class GCParser {
         cache.setFound(TextUtils.matches(page, GCConstants.PATTERN_FOUND) || TextUtils.matches(page, GCConstants.PATTERN_FOUND_ALTERNATIVE));
 
         // cache type
-        cache.setType(CacheType.getByPattern(TextUtils.getMatch(page, GCConstants.PATTERN_TYPE, true, cache.getType().id)));
+        cache.setType(CacheType.getByGuid(TextUtils.getMatch(page, GCConstants.PATTERN_TYPE, true, cache.getType().id)));
 
         // on watchlist
         cache.setOnWatchlist(TextUtils.matches(page, GCConstants.PATTERN_WATCHLIST));
@@ -726,14 +746,11 @@ public abstract class GCParser {
 
         // last check for necessary cache conditions
         if (StringUtils.isBlank(cache.getGeocode())) {
-            searchResult.setError(StatusCode.UNKNOWN_ERROR);
-            return searchResult;
+            return ImmutablePair.of(StatusCode.UNKNOWN_ERROR, null);
         }
 
         cache.setDetailedUpdatedNow();
-        searchResult.addAndPutInCache(Collections.singletonList(cache));
-        DataStore.saveLogsWithoutTransaction(cache.getGeocode(), getLogsFromDetails(page));
-        return searchResult;
+        return ImmutablePair.of(StatusCode.NO_ERROR, cache);
     }
 
     private static String getNumberString(final String numberWithPunctuation) {
@@ -1622,23 +1639,22 @@ public abstract class GCParser {
      *
      * @param page
      *            the text of the details page
-     * @return a list of log entries or <code>null</code> if the logs could not be retrieved
+     * @return a list of log entries which will be empty if the logs could not be retrieved
      *
      */
-    @Nullable
-    private static List<LogEntry> getLogsFromDetails(final String page) {
+    @NonNull
+    private static Observable<LogEntry> getLogsFromDetails(final String page) {
         // extract embedded JSON data from page
-        String rawResponse = TextUtils.getMatch(page, GCConstants.PATTERN_LOGBOOK, "");
-        return parseLogs(false, rawResponse);
+        return parseLogs(false, TextUtils.getMatch(page, GCConstants.PATTERN_LOGBOOK, ""));
     }
 
     private enum SpecialLogs {
         FRIENDS("sf"),
         OWN("sp");
 
-        String paramName;
+        final String paramName;
 
-        private SpecialLogs(String paramName) {
+        SpecialLogs(String paramName) {
             this.paramName = paramName;
         }
 
@@ -1654,102 +1670,111 @@ public abstract class GCParser {
      *            The page to extrat userToken from
      * @param logType
      *            The logType to request
-     * @return List<LogEntry> The list
+     * @return Observable<LogEntry> The logs
      */
-    private static List<LogEntry> getSpecialLogs(final String page, final SpecialLogs logType) {
-        final MatcherWrapper userTokenMatcher = new MatcherWrapper(GCConstants.PATTERN_USERTOKEN, page);
-        if (!userTokenMatcher.find()) {
-            Log.e("GCParser.loadLogsFromDetails: unable to extract userToken");
-            return null;
-        }
+    private static Observable<LogEntry> getSpecialLogs(final String page, final SpecialLogs logType) {
+        return Observable.defer(new Func0<Observable<? extends LogEntry>>() {
+            @Override
+            public Observable<? extends LogEntry> call() {
+                final MatcherWrapper userTokenMatcher = new MatcherWrapper(GCConstants.PATTERN_USERTOKEN, page);
+                if (!userTokenMatcher.find()) {
+                    Log.e("GCParser.loadLogsFromDetails: unable to extract userToken");
+                    return Observable.empty();
+                }
 
-        final String userToken = userTokenMatcher.group(1);
-        final Parameters params = new Parameters(
-                "tkn", userToken,
-                "idx", "1",
-                "num", String.valueOf(GCConstants.NUMBER_OF_LOGS),
-                logType.getParamName(), Boolean.toString(Boolean.TRUE),
-                "decrypt", "true");
-        final HttpResponse response = Network.getRequest("http://www.geocaching.com/seek/geocache.logbook", params);
-        if (response == null) {
-            Log.e("GCParser.loadLogsFromDetails: cannot log logs, response is null");
-            return null;
-        }
-        final int statusCode = response.getStatusLine().getStatusCode();
-        if (statusCode != 200) {
-            Log.e("GCParser.loadLogsFromDetails: error " + statusCode + " when requesting log information");
-            return null;
-        }
-        String rawResponse = Network.getResponseData(response);
-        if (rawResponse == null) {
-            Log.e("GCParser.loadLogsFromDetails: unable to read whole response");
-            return null;
-        }
-        return parseLogs(true, rawResponse);
+                final String userToken = userTokenMatcher.group(1);
+                final Parameters params = new Parameters(
+                        "tkn", userToken,
+                        "idx", "1",
+                        "num", String.valueOf(GCConstants.NUMBER_OF_LOGS),
+                        logType.getParamName(), Boolean.toString(Boolean.TRUE),
+                        "decrypt", "true");
+                final HttpResponse response = Network.getRequest("http://www.geocaching.com/seek/geocache.logbook", params);
+                if (response == null) {
+                    Log.e("GCParser.loadLogsFromDetails: cannot log logs, response is null");
+                    return Observable.empty();
+                }
+                final int statusCode = response.getStatusLine().getStatusCode();
+                if (statusCode != 200) {
+                    Log.e("GCParser.loadLogsFromDetails: error " + statusCode + " when requesting log information");
+                    return Observable.empty();
+                }
+                String rawResponse = Network.getResponseData(response);
+                if (rawResponse == null) {
+                    Log.e("GCParser.loadLogsFromDetails: unable to read whole response");
+                    return Observable.empty();
+                }
+                return parseLogs(true, rawResponse);
+            }
+        }).subscribeOn(Schedulers.io());
     }
 
-    private static List<LogEntry> parseLogs(final boolean markAsFriendsLog, String rawResponse) {
-        final List<LogEntry> logs = new ArrayList<LogEntry>();
+    private static Observable<LogEntry> parseLogs(final boolean markAsFriendsLog, final String rawResponse) {
+        return Observable.create(new OnSubscribe<LogEntry>() {
+            @Override
+            public void call(final Subscriber<? super LogEntry> subscriber) {
+                // for non logged in users the log book is not shown
+                if (StringUtils.isBlank(rawResponse)) {
+                    subscriber.onCompleted();
+                    return;
+                }
 
-        // for non logged in users the log book is not shown
-        if (StringUtils.isBlank(rawResponse)) {
-            return logs;
-        }
-
-        try {
-            final JSONObject resp = new JSONObject(rawResponse);
-            if (!resp.getString("status").equals("success")) {
-                Log.e("GCParser.loadLogsFromDetails: status is " + resp.getString("status"));
-                return null;
-            }
-
-            final JSONArray data = resp.getJSONArray("data");
-
-            for (int index = 0; index < data.length(); index++) {
-                final JSONObject entry = data.getJSONObject(index);
-
-                // FIXME: use the "LogType" field instead of the "LogTypeImage" one.
-                final String logIconNameExt = entry.optString("LogTypeImage", ".gif");
-                final String logIconName = logIconNameExt.substring(0, logIconNameExt.length() - 4);
-
-                long date = 0;
                 try {
-                    date = GCLogin.parseGcCustomDate(entry.getString("Visited")).getTime();
-                } catch (final ParseException e) {
-                    Log.e("GCParser.loadLogsFromDetails: failed to parse log date.");
+                    final JSONObject resp = new JSONObject(rawResponse);
+                    if (!resp.getString("status").equals("success")) {
+                        Log.e("GCParser.loadLogsFromDetails: status is " + resp.getString("status"));
+                        subscriber.onCompleted();
+                        return;
+                    }
+
+                    final JSONArray data = resp.getJSONArray("data");
+
+                    for (int index = 0; index < data.length(); index++) {
+                        final JSONObject entry = data.getJSONObject(index);
+
+                        // FIXME: use the "LogType" field instead of the "LogTypeImage" one.
+                        final String logIconNameExt = entry.optString("LogTypeImage", ".gif");
+                        final String logIconName = logIconNameExt.substring(0, logIconNameExt.length() - 4);
+
+                        long date = 0;
+                        try {
+                            date = GCLogin.parseGcCustomDate(entry.getString("Visited")).getTime();
+                        } catch (final ParseException e) {
+                            Log.e("GCParser.loadLogsFromDetails: failed to parse log date.");
+                        }
+
+                        // TODO: we should update our log data structure to be able to record
+                        // proper coordinates, and make them clickable. In the meantime, it is
+                        // better to integrate those coordinates into the text rather than not
+                        // display them at all.
+                        final String latLon = entry.getString("LatLonString");
+                        final String logText = (StringUtils.isEmpty(latLon) ? "" : (latLon + "<br/><br/>")) + TextUtils.removeControlCharacters(entry.getString("LogText"));
+                        final LogEntry logDone = new LogEntry(
+                                TextUtils.removeControlCharacters(entry.getString("UserName")),
+                                date,
+                                LogType.getByIconName(logIconName),
+                                logText);
+                        logDone.found = entry.getInt("GeocacheFindCount");
+                        logDone.friend = markAsFriendsLog;
+
+                        final JSONArray images = entry.getJSONArray("Images");
+                        for (int i = 0; i < images.length(); i++) {
+                            final JSONObject image = images.getJSONObject(i);
+                            final String url = "http://imgcdn.geocaching.com/cache/log/large/" + image.getString("FileName");
+                            final String title = TextUtils.removeControlCharacters(image.getString("Name"));
+                            final Image logImage = new Image(url, title);
+                            logDone.addLogImage(logImage);
+                        }
+
+                        subscriber.onNext(logDone);
+                    }
+                } catch (final JSONException e) {
+                    // failed to parse logs
+                    Log.w("GCParser.loadLogsFromDetails: Failed to parse cache logs", e);
                 }
-
-                // TODO: we should update our log data structure to be able to record
-                // proper coordinates, and make them clickable. In the meantime, it is
-                // better to integrate those coordinates into the text rather than not
-                // display them at all.
-                final String latLon = entry.getString("LatLonString");
-                final String logText = (StringUtils.isEmpty(latLon) ? "" : (latLon + "<br/><br/>")) + TextUtils.removeControlCharacters(entry.getString("LogText"));
-                final LogEntry logDone = new LogEntry(
-                        TextUtils.removeControlCharacters(entry.getString("UserName")),
-                        date,
-                        LogType.getByIconName(logIconName),
-                        logText);
-                logDone.found = entry.getInt("GeocacheFindCount");
-                logDone.friend = markAsFriendsLog;
-
-                final JSONArray images = entry.getJSONArray("Images");
-                for (int i = 0; i < images.length(); i++) {
-                    final JSONObject image = images.getJSONObject(i);
-                    final String url = "http://imgcdn.geocaching.com/cache/log/large/" + image.getString("FileName");
-                    final String title = TextUtils.removeControlCharacters(image.getString("Name"));
-                    final Image logImage = new Image(url, title);
-                    logDone.addLogImage(logImage);
-                }
-
-                logs.add(logDone);
+                subscriber.onCompleted();
             }
-        } catch (final JSONException e) {
-            // failed to parse logs
-            Log.w("GCParser.loadLogsFromDetails: Failed to parse cache logs", e);
-        }
-
-        return logs;
+        });
     }
 
     @NonNull
@@ -1841,25 +1866,39 @@ public abstract class GCParser {
     }
 
     private static void getExtraOnlineInfo(final Geocache cache, final String page, final CancellableHandler handler) {
+        // This method starts the page parsing for logs in the background, as well as retrieve the friends and own logs
+        // if requested. It merges them and stores them in the background, while the rating is retrieved if needed and
+        // stored. Then we wait for the log merging and saving to be completed before returning.
         if (CancellableHandler.isCancelled(handler)) {
             return;
         }
 
-        //cache.setLogs(loadLogsFromDetails(page, cache, false));
+        final Observable<LogEntry> logs = getLogsFromDetails(page).subscribeOn(Schedulers.computation());
+        Observable<LogEntry> specialLogs;
         if (Settings.isFriendLogsWanted()) {
             CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_logs);
-            final List<LogEntry> friendLogs = getSpecialLogs(page, SpecialLogs.FRIENDS);
-            final List<LogEntry> ownLogs = getSpecialLogs(page, SpecialLogs.OWN);
-            final List<LogEntry> mergedLogs = new ArrayList<LogEntry>(cache.getLogs());
-            if (mergeFriendsLogs(mergedLogs, friendLogs) | mergeFriendsLogs(mergedLogs, ownLogs)) {
-                DataStore.saveLogsWithoutTransaction(cache.getGeocode(), mergedLogs);
-            }
+            specialLogs = Observable.merge(getSpecialLogs(page, SpecialLogs.FRIENDS),
+                    getSpecialLogs(page, SpecialLogs.OWN));
+        } else {
+            CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_logs);
+            specialLogs = Observable.empty();
         }
+        final Observable<List<LogEntry>> mergedLogs = Observable.zip(logs.toList(), specialLogs.toList(),
+                new Func2<List<LogEntry>, List<LogEntry>, List<LogEntry>>() {
+                    @Override
+                    public List<LogEntry> call(final List<LogEntry> logEntries, final List<LogEntry> specialLogEntries) {
+                        mergeFriendsLogs(logEntries, specialLogEntries);
+                        return logEntries;
+                    }
+                }).cache();
+        mergedLogs.subscribe(new Action1<List<LogEntry>>() {
+                                 @Override
+                                 public void call(final List<LogEntry> logEntries) {
+                                     DataStore.saveLogsWithoutTransaction(cache.getGeocode(), logEntries);
+                                 }
+                             });
 
-        if (Settings.isRatingWanted()) {
-            if (CancellableHandler.isCancelled(handler)) {
-                return;
-            }
+        if (Settings.isRatingWanted() && !CancellableHandler.isCancelled(handler)) {
             CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_gcvote);
             final GCVoteRating rating = GCVote.getRating(cache.getGuid(), cache.getGeocode());
             if (rating != null) {
@@ -1868,6 +1907,9 @@ public abstract class GCParser {
                 cache.setMyVote(rating.getMyVote());
             }
         }
+
+        // Wait for completion of logs parsing, retrieving and merging
+        mergedLogs.toBlockingObservable().last();
     }
 
     /**
@@ -1878,20 +1920,15 @@ public abstract class GCParser {
      *            the list to merge logs with
      * @param logsToMerge
      *            the list of logs to merge
-     * @return true / false merged done
      */
-    private static boolean mergeFriendsLogs(final List<LogEntry> mergedLogs, List<LogEntry> logsToMerge) {
-        if (logsToMerge != null && !logsToMerge.isEmpty()) {
-            for (final LogEntry log : logsToMerge) {
-                if (mergedLogs.contains(log)) {
-                    mergedLogs.get(mergedLogs.indexOf(log)).friend = true;
-                } else {
-                    mergedLogs.add(log);
-                }
+    private static void mergeFriendsLogs(final List<LogEntry> mergedLogs, final Iterable<LogEntry> logsToMerge) {
+        for (final LogEntry log : logsToMerge) {
+            if (mergedLogs.contains(log)) {
+                mergedLogs.get(mergedLogs.indexOf(log)).friend = true;
+            } else {
+                mergedLogs.add(log);
             }
-            return true;
         }
-        return false;
     }
 
     public static boolean uploadModifiedCoordinates(Geocache cache, Geopoint wpt) {

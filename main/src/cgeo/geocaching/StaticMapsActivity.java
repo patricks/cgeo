@@ -1,6 +1,6 @@
 package cgeo.geocaching;
 
-import cgeo.geocaching.activity.AbstractActivity;
+import cgeo.geocaching.activity.AbstractActionBarActivity;
 import cgeo.geocaching.enumerations.LoadFlags;
 import cgeo.geocaching.utils.Log;
 
@@ -11,7 +11,6 @@ import org.androidannotations.annotations.OptionsMenu;
 import org.apache.commons.collections4.CollectionUtils;
 
 import android.app.ProgressDialog;
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;
@@ -25,7 +24,7 @@ import java.util.List;
 
 @EActivity
 @OptionsMenu(R.menu.static_maps_activity_options)
-public class StaticMapsActivity extends AbstractActivity {
+public class StaticMapsActivity extends AbstractActionBarActivity {
 
     private static final String EXTRAS_WAYPOINT = "waypoint";
     private static final String EXTRAS_DOWNLOAD = "download";
@@ -166,13 +165,5 @@ public class StaticMapsActivity extends AbstractActivity {
         }
         showToast(res.getString(R.string.err_detail_not_load_map_static));
         return false;
-    }
-
-    public static void startActivity(final Context activity, final String geocode, final boolean download, final Waypoint waypoint) {
-        StaticMapsActivity_.IntentBuilder_ builder = StaticMapsActivity_.intent(activity).geocode(geocode).download(download);
-        if (waypoint != null) {
-            builder.waypointId(waypoint.getId());
-        }
-        builder.start();
     }
 }
