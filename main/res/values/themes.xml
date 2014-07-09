@@ -20,7 +20,8 @@
 
         <!-- KitKat's transperent navigation -->
         <item name="android:fitsSystemWindows">true</item>
-        <item name="android:windowTranslucentNavigation" tools:ignore="NewApi">true</item>
+        <!-- Nokia X Changes -->
+        <!--<item name="android:windowTranslucentNavigation" tools:ignore="NewApi">true</item>-->
     </style>
 
 

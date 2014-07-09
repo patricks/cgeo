@@ -90,17 +90,7 @@ public class SettingsActivity extends PreferenceActivity {
         SettingsActivity.addPreferencesFromResource(this, R.xml.preferences);
         initPreferences();
 
-        /* Remove the show overflow preference on Android version where the platform always or never
-         * shows the overflow menu and the app cannot influence the behaviour
-         */
-        // Nokia X port changes
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB || Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN) {
-            Preference pref = findPreference(this, getString(R.string.pref_alwaysshowoverflowmenu));
-            PreferenceScreen appearence = (PreferenceScreen) findPreference(this, getString(R.string.pref_appearance));
-            appearence.removePreference(pref);
-
-        }
-        Intent intent = getIntent();
+        final Intent intent = getIntent();
         openInitialScreen(intent.getIntExtra(INTENT_OPEN_SCREEN, 0));
     }
 
