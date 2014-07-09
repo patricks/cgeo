@@ -11,6 +11,7 @@ import cgeo.geocaching.geopoint.Units;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.annotation.NonNull;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.res.Resources;
 import android.text.format.DateUtils;
@@ -26,6 +27,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+// TODO The suppression of this lint finding is bad. But to fix it, someone needs to rework the layout of the cache
+// details also, not just only change the code here.
+@SuppressLint("InflateParams")
 public final class CacheDetailsCreator {
     private final Activity activity;
     private final ViewGroup parentView;
@@ -45,7 +49,7 @@ public final class CacheDetailsCreator {
      * @return the view containing the displayed string (i.e. the right side one from the pair of "label": "value")
      */
     public TextView add(final int nameId, final CharSequence value) {
-        final RelativeLayout layout = (RelativeLayout) activity.getLayoutInflater().inflate(R.layout.cache_information_item, null);
+        final RelativeLayout layout = (RelativeLayout) activity.getLayoutInflater().inflate(R.layout.cache_information_item, null, false);
         final TextView nameView = (TextView) layout.findViewById(R.id.name);
         nameView.setText(res.getString(nameId));
         lastValueView = (TextView) layout.findViewById(R.id.value);
@@ -63,7 +67,7 @@ public final class CacheDetailsCreator {
     }
 
     public RelativeLayout addStars(final int nameId, final float value, final int max) {
-        final RelativeLayout layout = (RelativeLayout) activity.getLayoutInflater().inflate(R.layout.cache_information_item, null);
+        final RelativeLayout layout = (RelativeLayout) activity.getLayoutInflater().inflate(R.layout.cache_information_item, null, false);
         final TextView nameView = (TextView) layout.findViewById(R.id.name);
         lastValueView = (TextView) layout.findViewById(R.id.value);
         final LinearLayout layoutStars = (LinearLayout) layout.findViewById(R.id.stars);
@@ -81,7 +85,7 @@ public final class CacheDetailsCreator {
         final LayoutInflater inflater = LayoutInflater.from(activity);
 
         for (int i = 0; i < max; i++) {
-            ImageView star = (ImageView) inflater.inflate(R.layout.star_image, null);
+            final ImageView star = (ImageView) inflater.inflate(R.layout.star_image, starsContainer, false);
             if (value - i >= 0.75) {
                 star.setImageResource(R.drawable.star_on);
             } else if (value - i >= 0.25) {
@@ -93,7 +97,7 @@ public final class CacheDetailsCreator {
         }
     }
 
-    public void addCacheState(Geocache cache) {
+    public void addCacheState(final Geocache cache) {
         if (cache.isLogOffline() || cache.isArchived() || cache.isDisabled() || cache.isPremiumMembersOnly() || cache.isFound()) {
             final List<String> states = new ArrayList<String>(5);
             if (cache.isLogOffline()) {
@@ -115,7 +119,7 @@ public final class CacheDetailsCreator {
         }
     }
 
-    public void addRating(Geocache cache) {
+    public void addRating(final Geocache cache) {
         if (cache.getRating() > 0) {
             final RelativeLayout itemLayout = addStars(R.string.cache_rating, cache.getRating());
             if (cache.getVotes() > 0) {
@@ -126,19 +130,19 @@ public final class CacheDetailsCreator {
         }
     }
 
-    public void addSize(Geocache cache) {
+    public void addSize(final Geocache cache) {
         if (null != cache.getSize() && cache.showSize()) {
             add(R.string.cache_size, cache.getSize().getL10n());
         }
     }
 
-    public void addDifficulty(Geocache cache) {
+    public void addDifficulty(final Geocache cache) {
         if (cache.getDifficulty() > 0) {
             addStars(R.string.cache_difficulty, cache.getDifficulty());
         }
     }
 
-    public void addTerrain(Geocache cache) {
+    public void addTerrain(final Geocache cache) {
         if (cache.getTerrain() > 0) {
             addStars(R.string.cache_terrain, cache.getTerrain(), ConnectorFactory.getConnector(cache).getMaxTerrain());
         }
@@ -189,7 +193,7 @@ public final class CacheDetailsCreator {
         add(R.string.cache_distance, text);
     }
 
-    public void addEventDate(@NonNull Geocache cache) {
+    public void addEventDate(@NonNull final Geocache cache) {
         if (!cache.isEventCache()) {
             return;
         }

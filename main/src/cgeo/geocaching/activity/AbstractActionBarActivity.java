@@ -20,14 +20,15 @@ public class AbstractActionBarActivity extends AbstractActivity {
         showProgress(false);
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState, int resourceLayoutID, boolean useDialogTheme) {
-        super.onCreate(savedInstanceState, resourceLayoutID, useDialogTheme);
-        initUpAction();
-        showProgress(false);
-    }
 
     private void initUpAction() {
        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+    }
+
+    @Override
+    public void setTitle(CharSequence title) {
+        super.setTitle(title);
+        // reflect the title in the actionbar
+        ActivityMixin.setTitle(this, title);
     }
 }

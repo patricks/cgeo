@@ -3,19 +3,16 @@ package cgeo.geocaching;
 import cgeo.geocaching.sensors.DirectionProvider;
 import cgeo.geocaching.sensors.GeoDataProvider;
 import cgeo.geocaching.sensors.IGeoData;
-import cgeo.geocaching.settings.Settings;
 import cgeo.geocaching.utils.Log;
+import cgeo.geocaching.utils.OOMDumpingUncaughtExceptionHandler;
 
 import rx.Observable;
 import rx.functions.Action1;
 import rx.observables.ConnectableObservable;
 
 import android.app.Application;
-import android.os.Environment;
 import android.view.ViewConfiguration;
 
-import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.reflect.Field;
 
 public class CgeoApplication extends Application {
@@ -29,29 +26,18 @@ public class CgeoApplication extends Application {
     private volatile IGeoData currentGeo = null;
     private volatile float currentDirection = 0.0f;
 
-    static {
-        final UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+    public static void dumpOnOutOfMemory(final boolean enable) {
 
-        Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
+        if (enable) {
 
-            @Override
-            public void uncaughtException(Thread thread, Throwable ex) {
-                Log.e("UncaughtException", ex);
-                Throwable exx = ex;
-                while (exx.getCause() != null) {
-                    exx = exx.getCause();
-                }
-                if (exx.getClass().equals(OutOfMemoryError.class)) {
-                    try {
-                        Log.e("OutOfMemory");
-                        android.os.Debug.dumpHprofData(Environment.getExternalStorageDirectory().getPath() + "/dump.hprof");
-                    } catch (IOException e) {
-                        Log.e("Error writing dump", e);
-                    }
-                }
-                defaultHandler.uncaughtException(thread, ex);
+            if (!OOMDumpingUncaughtExceptionHandler.activateHandler()) {
+                Log.e("OOM dumping handler not activated (either a problem occured or it was already active)");
             }
-        });
+        } else {
+            if (!OOMDumpingUncaughtExceptionHandler.resetToDefault()) {
+                Log.e("OOM dumping handler not resetted (either a problem occured or it was not active)");
+            }
+        }
     }
 
     public CgeoApplication() {
@@ -68,21 +54,18 @@ public class CgeoApplication extends Application {
 
     @Override
     public void onCreate() {
-        if (Settings.isAlwaysShowOverlfowMenu()) {
-            try {
-                ViewConfiguration config = ViewConfiguration.get(this);
-                Field menuKeyField = ViewConfiguration.class.getDeclaredField("sHasPermanentMenuKey");
+        try {
+            final ViewConfiguration config = ViewConfiguration.get(this);
+            final Field menuKeyField = ViewConfiguration.class.getDeclaredField("sHasPermanentMenuKey");
 
-                if (menuKeyField != null) {
-                    menuKeyField.setAccessible(true);
-                    menuKeyField.setBoolean(config, false);
-                }
-            } catch (Exception ex) {
-                // Ignore
+            if (menuKeyField != null) {
+                menuKeyField.setAccessible(true);
+                menuKeyField.setBoolean(config, false);
             }
+        } catch (final Exception ex) {
+            // Ignore
         }
     }
-
 
     @Override
     public void onLowMemory() {
@@ -119,7 +102,7 @@ public class CgeoApplication extends Application {
     }
 
     public IGeoData currentGeo() {
-        return currentGeo != null ? currentGeo : geoDataObservable().toBlockingObservable().first();
+        return currentGeo != null ? currentGeo : geoDataObservable().toBlocking().first();
     }
 
     public float currentDirection() {

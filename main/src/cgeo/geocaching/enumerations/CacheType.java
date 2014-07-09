@@ -68,6 +68,9 @@ public enum CacheType {
             mappingPattern.put(ct.pattern.toLowerCase(Locale.US), ct);
             mappingGuid.put(ct.guid, ct);
         }
+        // add old mystery type for GPX file compatibility
+        mappingPattern.put("Mystery Cache".toLowerCase(Locale.US), MYSTERY);
+
         FIND_BY_ID = Collections.unmodifiableMap(mappingId);
         FIND_BY_PATTERN = Collections.unmodifiableMap(mappingPattern);
         FIND_BY_GUID = Collections.unmodifiableMap(mappingGuid);

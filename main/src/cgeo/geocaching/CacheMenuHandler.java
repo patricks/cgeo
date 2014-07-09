@@ -15,7 +15,7 @@ import android.view.MenuItem;
 /**
  * Shared menu handling for all activities having menu items related to a cache. <br>
  * TODO: replace by a fragment
- * 
+ *
  */
 public class CacheMenuHandler extends AbstractUIFactory {
 
@@ -32,7 +32,7 @@ public class CacheMenuHandler extends AbstractUIFactory {
 
     }
 
-    public static boolean onMenuItemSelected(MenuItem item, CacheMenuHandler.ActivityInterface activityInterface, Geocache cache) {
+    public static boolean onMenuItemSelected(final MenuItem item, final CacheMenuHandler.ActivityInterface activityInterface, final Geocache cache) {
         assert activityInterface instanceof Activity || activityInterface instanceof Fragment;
         final Activity activity;
         if (activityInterface instanceof Activity) {
@@ -55,8 +55,14 @@ public class CacheMenuHandler extends AbstractUIFactory {
                 cache.openInBrowser(activity);
                 return true;
             case R.id.menu_share:
-                cache.shareCache(activity, res);
-                return true;
+                /* If the share menu is a shareActionProvider do nothing and let the share ActionProvider do the work */
+                final ShareActionProvider shareActionProvider = (ShareActionProvider)
+                        MenuItemCompat.getActionProvider(item);
+                if (shareActionProvider == null) {
+                    cache.shareCache(activity, res);
+                    return true;
+                }
+                return false;
             case R.id.menu_calendar:
                 CalendarAddon.addToCalendarWithIntent(activity, cache);
                 return true;
@@ -66,7 +72,6 @@ public class CacheMenuHandler extends AbstractUIFactory {
     }
 
     public static void onPrepareOptionsMenu(final Menu menu, final Geocache cache) {
-        //
         if (cache == null) {
             return;
         }
@@ -79,21 +84,21 @@ public class CacheMenuHandler extends AbstractUIFactory {
 
         menu.findItem(R.id.menu_default_navigation).setTitle(NavigationAppFactory.getDefaultNavigationApplication().getName());
 
-        MenuItem shareItem = menu.findItem(R.id.menu_share);
-        ShareActionProvider shareActionProvider = (ShareActionProvider)
+        final MenuItem shareItem = menu.findItem(R.id.menu_share);
+        final ShareActionProvider shareActionProvider = (ShareActionProvider)
                 MenuItemCompat.getActionProvider(shareItem);
         if(shareActionProvider != null) {
-            shareActionProvider.setShareIntent(cache.getIntent());
+            shareActionProvider.setShareIntent(cache.getShareIntent());
         }
 
     }
 
-    public static void addMenuItems(MenuInflater inflater, Menu menu, Geocache cache) {
+    public static void addMenuItems(final MenuInflater inflater, final Menu menu, final Geocache cache) {
         inflater.inflate(R.menu.cache_options, menu);
         onPrepareOptionsMenu(menu, cache);
     }
 
-    public static void addMenuItems(Activity activity, Menu menu, Geocache cache) {
+    public static void addMenuItems(final Activity activity, final Menu menu, final Geocache cache) {
         addMenuItems(activity.getMenuInflater(), menu, cache);
     }
 }

@@ -6,6 +6,8 @@ import butterknife.InjectView;
 import cgeo.geocaching.activity.AbstractActionBarActivity;
 import cgeo.geocaching.connector.ConnectorFactory;
 import cgeo.geocaching.connector.capability.ILogin;
+import cgeo.geocaching.connector.gc.GCConnector;
+import cgeo.geocaching.connector.gc.GCLogin;
 import cgeo.geocaching.enumerations.CacheType;
 import cgeo.geocaching.enumerations.StatusCode;
 import cgeo.geocaching.geopoint.Geopoint;
@@ -21,6 +23,8 @@ import cgeo.geocaching.ui.Formatter;
 import cgeo.geocaching.ui.dialog.Dialogs;
 import cgeo.geocaching.utils.DatabaseBackupUtils;
 import cgeo.geocaching.utils.Log;
+import cgeo.geocaching.utils.RxUtils;
+import cgeo.geocaching.utils.TextUtils;
 import cgeo.geocaching.utils.Version;
 
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -33,7 +37,6 @@ import rx.Observable.OnSubscribe;
 import rx.Subscriber;
 import rx.android.observables.AndroidObservable;
 import rx.functions.Action1;
-import rx.schedulers.Schedulers;
 import rx.subscriptions.Subscriptions;
 
 import android.app.AlertDialog;
@@ -91,24 +94,24 @@ public class MainActivity extends AbstractActionBarActivity {
 
     private final UpdateLocation locationUpdater = new UpdateLocation();
 
-    private Handler updateUserInfoHandler = new Handler() {
+    private final Handler updateUserInfoHandler = new Handler() {
 
         @Override
         public void handleMessage(final Message msg) {
 
             // Get active connectors with login status
-            ILogin[] loginConns = ConnectorFactory.getActiveLiveConnectors();
+            final ILogin[] loginConns = ConnectorFactory.getActiveLiveConnectors();
 
             // Update UI
             infoArea.removeAllViews();
-            LayoutInflater inflater = getLayoutInflater();
+            final LayoutInflater inflater = getLayoutInflater();
 
-            for (ILogin conn : loginConns) {
+            for (final ILogin conn : loginConns) {
 
-                TextView connectorInfo = (TextView) inflater.inflate(R.layout.main_activity_connectorstatus, null);
+                final TextView connectorInfo = (TextView) inflater.inflate(R.layout.main_activity_connectorstatus, null);
                 infoArea.addView(connectorInfo);
 
-                StringBuilder userInfo = new StringBuilder(conn.getName()).append(Formatter.SEPARATOR);
+                final StringBuilder userInfo = new StringBuilder(conn.getName()).append(Formatter.SEPARATOR);
                 if (conn.isLoggedIn()) {
                     userInfo.append(conn.getUserName());
                     if (conn.getCachesFound() >= 0) {
@@ -172,9 +175,9 @@ public class MainActivity extends AbstractActionBarActivity {
 
     }
 
-    private SatellitesHandler satellitesHandler = new SatellitesHandler();
+    private final SatellitesHandler satellitesHandler = new SatellitesHandler();
 
-    private Handler firstLoginHandler = new Handler() {
+    private final Handler firstLoginHandler = new Handler() {
 
         @Override
         public void handleMessage(final Message msg) {
@@ -184,7 +187,7 @@ public class MainActivity extends AbstractActionBarActivity {
                 if (reason != null && reason != StatusCode.NO_ERROR) { //LoginFailed
                     showToast(res.getString(reason == StatusCode.MAINTENANCE ? reason.getErrorString() : R.string.err_login_failed_toast));
                 }
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 Log.w("MainActivity.firstLoginHander", e);
             }
         }
@@ -213,6 +216,8 @@ public class MainActivity extends AbstractActionBarActivity {
         Log.i("Starting " + getPackageName() + ' ' + version + " a.k.a " + Version.getVersionName(this));
 
         init();
+
+        checkShowChangelog();
     }
 
     @Override
@@ -240,6 +245,10 @@ public class MainActivity extends AbstractActionBarActivity {
                 new Thread() {
                     @Override
                     public void run() {
+                        if (mustLogin && conn == GCConnector.getInstance()) {
+                            // Properly log out from geocaching.com
+                            GCLogin.getInstance().logout();
+                        }
                         conn.login(firstLoginHandler, MainActivity.this);
                         updateUserInfoHandler.sendEmptyMessage(-1);
                     }
@@ -271,9 +280,9 @@ public class MainActivity extends AbstractActionBarActivity {
     @Override
     public boolean onCreateOptionsMenu(final Menu menu) {
         getMenuInflater().inflate(R.menu.main_activity_options, menu);
-        SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
-        MenuItem searchItem = menu.findItem(R.id.menu_gosearch);
-        SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
+        final SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+        final MenuItem searchItem = menu.findItem(R.id.menu_gosearch);
+        final SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
         searchView.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
 
         return true;
@@ -321,16 +330,12 @@ public class MainActivity extends AbstractActionBarActivity {
                     }
                 });
                 return true;
-            case R.id.menu_gosearch:
-                onSearchRequested();
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
         }
+        return super.onOptionsItemSelected(item);
     }
 
     private void startScannerApplication() {
-        IntentIntegrator integrator = new IntentIntegrator(this);
+        final IntentIntegrator integrator = new IntentIntegrator(this);
         // integrator dialog is English only, therefore localize it
         integrator.setButtonYesByID(android.R.string.yes);
         integrator.setButtonNoByID(android.R.string.no);
@@ -341,9 +346,9 @@ public class MainActivity extends AbstractActionBarActivity {
 
     @Override
     public void onActivityResult(final int requestCode, final int resultCode, final Intent intent) {
-        IntentResult scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
+        final IntentResult scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
         if (scanResult != null) {
-            String scan = scanResult.getContents();
+            final String scan = scanResult.getContents();
             if (StringUtils.isBlank(scan)) {
                 return;
             }
@@ -455,7 +460,7 @@ public class MainActivity extends AbstractActionBarActivity {
         cacheTypes.add(CacheType.MYSTERY);
 
         // then add all other cache types sorted alphabetically
-        List<CacheType> sorted = new ArrayList<CacheType>();
+        final List<CacheType> sorted = new ArrayList<CacheType>();
         sorted.addAll(Arrays.asList(CacheType.values()));
         sorted.removeAll(cacheTypes);
 
@@ -474,18 +479,18 @@ public class MainActivity extends AbstractActionBarActivity {
             checkedItem = 0;
         }
 
-        String[] items = new String[cacheTypes.size()];
+        final String[] items = new String[cacheTypes.size()];
         for (int i = 0; i < cacheTypes.size(); i++) {
             items[i] = cacheTypes.get(i).getL10n();
         }
 
-        Builder builder = new AlertDialog.Builder(this);
+        final Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(R.string.menu_filter);
         builder.setSingleChoiceItems(items, checkedItem, new DialogInterface.OnClickListener() {
 
             @Override
             public void onClick(final DialogInterface dialog, final int position) {
-                CacheType cacheType = cacheTypes.get(position);
+                final CacheType cacheType = cacheTypes.get(position);
                 Settings.setCacheType(cacheType);
                 setFilterTitle();
                 dialog.dismiss();
@@ -545,7 +550,7 @@ public class MainActivity extends AbstractActionBarActivity {
             navType.setText(res.getString(geo.getLocationProvider().resourceId));
 
             if (geo.getAccuracy() >= 0) {
-                int speed = Math.round(geo.getSpeed()) * 60 * 60 / 1000;
+                final int speed = Math.round(geo.getSpeed()) * 60 * 60 / 1000;
                 navAccuracy.setText("±" + Units.getDistanceFromMeters(geo.getAccuracy()) + Formatter.SEPARATOR + Units.getSpeed(speed));
             } else {
                 navAccuracy.setText(null);
@@ -574,12 +579,13 @@ public class MainActivity extends AbstractActionBarActivity {
                         }
                     });
                     AndroidObservable.bindActivity(MainActivity.this, address.onErrorResumeNext(Observable.from(geo.getCoords().toString())))
+                            .subscribeOn(RxUtils.networkScheduler)
                             .subscribe(new Action1<String>() {
                                 @Override
                                 public void call(final String address) {
                                     navLocation.setText(address);
                                 }
-                            }, Schedulers.io());
+                            });
                 }
             } else {
                 navLocation.setText(geo.getCoords().toString());
@@ -654,7 +660,7 @@ public class MainActivity extends AbstractActionBarActivity {
     }
 
     private class CountBubbleUpdateThread extends Thread {
-        private Handler countBubbleHandler = new Handler() {
+        private final Handler countBubbleHandler = new Handler() {
 
             @Override
             public void handleMessage(final Message msg) {
@@ -666,7 +672,7 @@ public class MainActivity extends AbstractActionBarActivity {
                         countBubble.bringToFront();
                         countBubble.setVisibility(View.VISIBLE);
                     }
-                } catch (Exception e) {
+                } catch (final Exception e) {
                     Log.w("MainActivity.countBubbleHander", e);
                 }
             }
@@ -683,7 +689,7 @@ public class MainActivity extends AbstractActionBarActivity {
                 try {
                     sleep(500);
                     checks++;
-                } catch (Exception e) {
+                } catch (final Exception e) {
                     Log.e("MainActivity.CountBubbleUpdateThread.run", e);
                 }
 
@@ -723,6 +729,16 @@ public class MainActivity extends AbstractActionBarActivity {
             if (version > 0) {
                 Settings.setVersion(version);
             }
+        }
+    }
+
+    private void checkShowChangelog() {
+        final long lastChecksum = Settings.getLastChangelogChecksum();
+        final long checksum = TextUtils.checksum(getString(R.string.changelog_master) + getString(R.string.changelog_release));
+        Settings.setLastChangelogChecksum(checksum);
+        // don't show change log after new install...
+        if (lastChecksum > 0 && lastChecksum != checksum) {
+            AboutActivity.showChangeLog(this);
         }
     }
 

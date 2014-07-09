@@ -32,6 +32,7 @@ import cgeo.geocaching.ui.DirectionImage;
 import cgeo.geocaching.utils.CancellableHandler;
 import cgeo.geocaching.utils.Log;
 import cgeo.geocaching.utils.MatcherWrapper;
+import cgeo.geocaching.utils.RxUtils;
 import cgeo.geocaching.utils.SynchronizedDateFormat;
 import cgeo.geocaching.utils.TextUtils;
 
@@ -53,7 +54,6 @@ import rx.Subscriber;
 import rx.functions.Action1;
 import rx.functions.Func0;
 import rx.functions.Func2;
-import rx.schedulers.Schedulers;
 
 import android.net.Uri;
 import android.text.Html;
@@ -358,7 +358,7 @@ public abstract class GCParser {
 
         // save full detailed caches
         CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_cache);
-        DataStore.saveCache(cache, EnumSet.of(SaveFlag.SAVE_DB));
+        DataStore.saveCache(cache, EnumSet.of(SaveFlag.DB));
 
         // update progress message so user knows we're still working. This is more of a place holder than
         // actual indication of what the program is doing
@@ -371,7 +371,7 @@ public abstract class GCParser {
         final SearchResult result = new SearchResult(parsed.left);
         if (parsed.left == StatusCode.NO_ERROR) {
             result.addAndPutInCache(Collections.singletonList(parsed.right));
-            DataStore.saveLogsWithoutTransaction(parsed.right.getGeocode(), getLogsFromDetails(page).toBlockingObservable().toIterable());
+            DataStore.saveLogsWithoutTransaction(parsed.right.getGeocode(), getLogsFromDetails(page).toBlocking().toIterable());
         }
         return result;
     }
@@ -775,15 +775,12 @@ public abstract class GCParser {
             return search;
         }
 
-        // As in the original code, remove the query string
-        final String uri = Uri.parse(url).buildUpon().query(null).build().toString();
-
         final Parameters params = new Parameters(
                 "__EVENTTARGET", "ctl00$ContentBody$pgrBottom$ctl08",
                 "__EVENTARGUMENT", "");
         GCLogin.putViewstates(params, viewstates);
 
-        final String page = GCLogin.getInstance().postRequestLogged(uri, params);
+        final String page = GCLogin.getInstance().postRequestLogged(url, params);
         if (!GCLogin.getInstance().getLoginStatus(page)) {
             Log.e("GCParser.postLogTrackable: Can not log in geocaching");
             return search;
@@ -1706,7 +1703,7 @@ public abstract class GCParser {
                 }
                 return parseLogs(true, rawResponse);
             }
-        }).subscribeOn(Schedulers.io());
+        }).subscribeOn(RxUtils.networkScheduler);
     }
 
     private static Observable<LogEntry> parseLogs(final boolean markAsFriendsLog, final String rawResponse) {
@@ -1873,7 +1870,7 @@ public abstract class GCParser {
             return;
         }
 
-        final Observable<LogEntry> logs = getLogsFromDetails(page).subscribeOn(Schedulers.computation());
+        final Observable<LogEntry> logs = getLogsFromDetails(page).subscribeOn(RxUtils.computationScheduler);
         Observable<LogEntry> specialLogs;
         if (Settings.isFriendLogsWanted()) {
             CancellableHandler.sendLoadProgressDetail(handler, R.string.cache_dialog_loading_details_status_logs);
@@ -1909,7 +1906,7 @@ public abstract class GCParser {
         }
 
         // Wait for completion of logs parsing, retrieving and merging
-        mergedLogs.toBlockingObservable().last();
+        mergedLogs.toBlocking().last();
     }
 
     /**
