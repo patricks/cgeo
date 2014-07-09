@@ -33,8 +33,8 @@ public class MapProviderFactory {
 
     public static boolean isGoogleMapsInstalled() {
         // Check if API key is available
-        // nokia devices uses here maps
-        if ("nokia".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+        // Nokia X devices uses here maps
+        if ("Nokia".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
             if (StringUtils.isBlank(CgeoApplication.getInstance().getString(R.string.here_app_id))) {
                 Log.w("No Here APP ID available.");
                 return false;
@@ -50,7 +50,7 @@ public class MapProviderFactory {
         // Check if API is available
         try {
             Class.forName("com.google.android.maps.MapActivity");
-        } catch (ClassNotFoundException e) {
+        } catch (final ClassNotFoundException e) {
             return false;
         }
 
@@ -68,7 +68,7 @@ public class MapProviderFactory {
         return provider1 == provider2 && provider1.isSameActivity(source1, source2);
     }
 
-    public static void addMapviewMenuItems(Menu menu) {
+    public static void addMapviewMenuItems(final Menu menu) {
         final SubMenu parentMenu = menu.findItem(R.id.menu_select_mapview).getSubMenu();
 
         final int currentSource = Settings.getMapSource().getNumericalId();
@@ -87,8 +87,8 @@ public class MapProviderFactory {
      * @return the map source, or <tt>null</tt> if <tt>id</tt> does not correspond to a registered map source
      */
     @Nullable
-    public static MapSource getMapSource(int id) {
-        for (MapSource mapSource : mapSources) {
+    public static MapSource getMapSource(final int id) {
+        for (final MapSource mapSource : mapSources) {
             if (mapSource.getNumericalId() == id) {
                 return mapSource;
             }
@@ -118,7 +118,7 @@ public class MapProviderFactory {
      */
     public static void deleteOfflineMapSources() {
         final ArrayList<MapSource> deletion = new ArrayList<MapSource>();
-        for (MapSource mapSource : mapSources) {
+        for (final MapSource mapSource : mapSources) {
             if (mapSource instanceof MapsforgeMapProvider.OfflineMapSource) {
                 deletion.add(mapSource);
             }
